@@ -9,7 +9,7 @@ The purpose of this project is to:
 
 ### Data
 
-The data used for this analysis was taken from this Kaggle page: [thetvdb.com](https://www.kaggle.com/datasets/sijovm/atpdata/data)
+The data used for this analysis was taken from this [Kaggle](https://www.kaggle.com/datasets/sijovm/atpdata/data) page.  It includes only mens matches from 1968 through 2022.  Match statistics were not available until 1991.
 
 
 ### Challenges
