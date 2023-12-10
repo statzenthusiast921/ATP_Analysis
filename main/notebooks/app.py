@@ -15,8 +15,20 @@ import pyarrow
 url = 'https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/model_df_v2.parquet.gzip'
 atp_df = pd.read_parquet(url)
 
+matches = pd.read_csv('https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/atp_matches_till_2022.csv')
+matches = matches[matches['tourney_date']>=19910101]
+
 player_choices = sorted(atp_df['player_name'].unique())
 surface_choices = sorted(atp_df['surface'].unique())
+
+
+#Player --> Opponent Dictionary
+player_opponent_df = atp_df[['tourney_id','player_name','match_num']]
+player_opponent_df = player_opponent_df.sort_values(['tourney_id', 'match_num'], ascending=[True, True])
+
+po_pairs = pd.merge(player_opponent_df, player_opponent_df, how = 'inner', on = ['tourney_id','match_num'])
+po_pairs = po_pairs[po_pairs['player_name_x'] != po_pairs['player_name_y']]  # Remove rows where a player is paired with themselves
+player_opponents_dict = po_pairs.groupby('player_name_x')['player_name_y'].agg(list).to_dict()
 
 
 tabs_styles = {
@@ -146,12 +158,12 @@ app.layout = html.Div([
         dcc.Tab(label='Surface Stats',value='tab-3',style=tab_style, selected_style=tab_selected_style,
         children=[
             dbc.Row([
-                    dbc.Col([
-                        dbc.Label('Choose a player:')
-                    ], width = 6),
-                    dbc.Col([
-                        dbc.Label('Choose a court surface:')
-                    ], width = 6)
+                dbc.Col([
+                    dbc.Label('Choose a player:')
+                ], width = 6),
+                dbc.Col([
+                    dbc.Label('Choose a court surface:')
+                 ], width = 6)
             ]),
             dbc.Row([
                 dbc.Col([
@@ -182,7 +194,35 @@ app.layout = html.Div([
         ]),
         dcc.Tab(label='Head-to-Head Matchups',value='tab-4',style=tab_style, selected_style=tab_selected_style,
             children = [
-                
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label('Choose player:')
+                    ], width = 6),
+                    dbc.Col([
+                        dbc.Label('Choose opponent:')
+                    ], width = 6),
+                ]),
+                dbc.Row([
+                    dbc.Col([
+                    #----- Player filter
+                        dcc.Dropdown(
+                            id='dropdown4',
+                            style={'color':'black'},
+                            options=[{'label': i, 'value': i} for i in player_choices],
+                            value=player_choices[0]
+                        )
+                    ],width=6),
+                    dbc.Col([
+                    #----- Surface filter
+                        dcc.Dropdown(
+                            id='dropdown5',
+                            style={'color':'black'},
+                            options=[{'label': i, 'value': i} for i in player_choices],
+                            value = player_choices[1]
+                        )
+                    ],width=6),
+                ]),
+
             ]
         )
 
@@ -293,6 +333,8 @@ def stat_timeline_chart(dd2, dd3):
         (atp_df['player_name']==dd2) &
         (atp_df['surface']==dd3) 
     ]
+
+
     #filtered = atp_df[atp_df['player_name']=='Roger Federer']
     filtered = filtered[['tourney_name','surface','tourney_date','player_age', 'rank',
                          'round','num_aces','num_dfs','serve1_in_perc',
@@ -305,7 +347,10 @@ def stat_timeline_chart(dd2, dd3):
         'num_aces':'mean',
         'num_dfs':'mean'
         }).reset_index()
- 
+
+    line_chart_df['tourney_date'] = line_chart_df['tourney_date'].astype(int)
+    line_chart_df['tourney_date'] = pd.to_datetime(line_chart_df['tourney_date'].astype(str), format='%Y%m%d')
+
 
     line_chart = px.line(
             line_chart_df, 
@@ -323,6 +368,19 @@ def stat_timeline_chart(dd2, dd3):
     #line_chart.update_layout(legend_title="Country")
 
     return line_chart
+
+@app.callback(
+    Output('dropdown5', 'options'),#-----Filters the opponent options
+    Output('dropdown5', 'value'),
+    Input('dropdown4', 'value') #----- Select the player
+)
+def set_character_options(selected_player):
+    return [{'label': i, 'value': i} for i in player_opponents_dict[selected_player]], player_opponents_dict[selected_player][0]
+
+
+
+
+
 
 
 #app.run_server(host='0.0.0.0',port='8049')
