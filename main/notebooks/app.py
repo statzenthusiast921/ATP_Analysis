@@ -15,8 +15,20 @@ import pyarrow
 url = 'https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/model_df_v2.parquet.gzip'
 atp_df = pd.read_parquet(url)
 
-matches = pd.read_csv('https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/atp_matches_till_2022.csv')
-matches = matches[matches['tourney_date']>=19910101]
+match_totals = atp_df.groupby('player_name').agg(total_match_count=('player_name', 'size')).reset_index()
+
+atp_df = pd.merge(
+    atp_df, 
+    match_totals, 
+    how = 'inner', 
+    on = 'player_name'
+)
+
+#Filter out players with only a few matches
+atp_df = atp_df[atp_df['total_match_count']>=100]
+
+# matches = pd.read_csv('https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/atp_matches_till_2022.csv')
+# matches = matches[matches['tourney_date']>=19910101]
 
 player_choices = sorted(atp_df['player_name'].unique())
 surface_choices = sorted(atp_df['surface'].unique())
@@ -209,7 +221,7 @@ app.layout = html.Div([
                             id='dropdown4',
                             style={'color':'black'},
                             options=[{'label': i, 'value': i} for i in player_choices],
-                            value=player_choices[0]
+                            value = player_choices[0]
                         )
                     ],width=6),
                     dbc.Col([
