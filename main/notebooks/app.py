@@ -1,12 +1,11 @@
 #Import packages
 import pandas as pd
-import numpy as np
+#import numpy as np
 import plotly.express as px
 import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
-from dash.dependencies import Input, Output, State
-import plotly.graph_objects as go
+from dash.dependencies import Input, Output
 import os
 import pyarrow
 
@@ -15,6 +14,8 @@ import pyarrow
 url = 'https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/model_df_v2.parquet.gzip'
 atp_df = pd.read_parquet(url)
 
+
+#Filter out players with less than 200 matches
 match_totals = atp_df.groupby('player_name').agg(total_match_count=('player_name', 'size')).reset_index()
 
 atp_df = pd.merge(
@@ -24,15 +25,11 @@ atp_df = pd.merge(
     on = 'player_name'
 )
 
-#Filter out players with only a few matches
-atp_df = atp_df[atp_df['total_match_count']>=100]
+atp_df = atp_df[atp_df['total_match_count']>=200]
 
-# matches = pd.read_csv('https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/atp_matches_till_2022.csv')
-# matches = matches[matches['tourney_date']>=19910101]
-
+#Define options for dropdown menus
 player_choices = sorted(atp_df['player_name'].unique())
 surface_choices = sorted(atp_df['surface'].unique())
-
 
 #Player --> Opponent Dictionary
 player_opponent_df = atp_df[['tourney_id','player_name','match_num']]
@@ -234,6 +231,22 @@ app.layout = html.Div([
                         )
                     ],width=6),
                 ]),
+                #----- Head to Head Stat Cards
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card(id="card1")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card2")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card3")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card4")
+                    ],width=3)
+                ],className="g-0"),
+             
 
             ]
         )
@@ -391,8 +404,105 @@ def set_character_options(selected_player):
 
 
 
+@app.callback(
+    Output('card1', 'children'),
+    Output('card2', 'children'),
+    Output('card3', 'children'),
+    Output('card4', 'children'),
+    Input('dropdown4', 'value'),
+    Input('dropdown5', 'value')
+)
 
 
+def head_to_head_match_stats(dd4, dd5):
+    player1_df = atp_df[atp_df['player_name']==dd4]
+    player2_df = atp_df[atp_df['player_name']==dd5]
+
+    new_df = pd.merge(
+        player1_df,
+        player2_df,
+        how = 'inner',
+        on = ['tourney_id','match_num']
+    )
+    #new_df.to_csv('head2head.csv', sep=',', index=False, encoding='utf-8')
+
+    win_df = new_df[new_df['outcome_x']==1]
+    loss_df = new_df[new_df['outcome_x']==0]
+
+    wins = win_df.shape[0]
+    losses = loss_df.shape[0]
+    
+    card1 = dbc.Card([
+            dbc.CardBody([
+                html.H5('Wins - Losses'),
+                html.P(f'{wins} - {losses}')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+
+    avg_aces = round(new_df['num_aces_x'].mean(),0)
+
+    card2 = dbc.Card([
+            dbc.CardBody([
+                html.H5('Avg # Aces Per Match'),
+                html.P(f'{avg_aces}')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+
+    avg_dfs = round(new_df['num_dfs_x'].mean(),0)
+
+    card3 = dbc.Card([
+            dbc.CardBody([
+                html.H5('Avg # Double Faults Per Match'),
+                html.P(f'{avg_dfs}')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+
+    
+    avg_bps = round(new_df['num_brkpts_saved_x'].mean(),0)
+
+    card4 = dbc.Card([
+            dbc.CardBody([
+                html.H5('Avg # Break Points Saved Per Match'),
+                html.P(f'{avg_bps}')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+    return card1, card2, card3, card4
 
 
 #app.run_server(host='0.0.0.0',port='8049')
