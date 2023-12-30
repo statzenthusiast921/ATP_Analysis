@@ -25,11 +25,16 @@ atp_df = pd.merge(
     on = 'player_name'
 )
 
-atp_df = atp_df[atp_df['total_match_count']>=200]
+atp_df = atp_df[atp_df['total_match_count']>=300]
 
 #Define options for dropdown menus
 player_choices = sorted(atp_df['player_name'].unique())
 surface_choices = sorted(atp_df['surface'].unique())
+statistic_choices = sorted([
+    'Aces','Double Faults','Break Points Saved',
+    'Break Points Faced','% Games Won',
+    '1st Serve In %', '1st Serve Win %','2nd Serve Win %'
+])
 
 #Player --> Opponent Dictionary
 player_opponent_df = atp_df[['tourney_id','player_name','match_num']]
@@ -76,27 +81,29 @@ app.layout = html.Div([
                     html.P(dcc.Markdown('''**What is the ATP?**'''))
                 ],style={'text-decoration': 'underline'}),
                 html.Div([
-                    html.P("Blah blah blah")
+                    html.P("The Association of Tennis Professionals (ATP) is the governing body of the men's professional tennis circuits - the ATP Tour, the ATP Challenger Tour and the ATP Champions Tour. It was formed in September 1972 to protect the interests of professional tennis players.")
                 ]),
                 html.Div([
                     html.P(dcc.Markdown('''**What is the purpose of this dashboard?**''')),
                 ],style={'text-decoration': 'underline'}),
                 html.Div([
-                    html.P("Blah"),
-                    html.P("Blah")
+                    html.P("The purpose of this dashboard is to analyze tennis match statistics to answer the following questions:"),
+                    html.P("1.) How does a player's individual performance change over time?"),
+                    html.P("2.) How do players head-to-head performances compare?"),
+                    html.P('3.) Can we predict the outcome of a match given certain attributes?')
                 ]),
                 html.Div([
                     html.P(dcc.Markdown('''**What data is being used for this analysis?**''')),
                 ],style={'text-decoration': 'underline'}),   
                 html.Div([
-                       html.P(["ions.", " blah"])
+                       html.P(["The data chosen for this analysis was found from this Kaggle link ", html.A('here.', href = 'https://www.kaggle.com/datasets/sijovm/atpdata/data'), " This data contains details of ATP matches since 1968."])
                 ]),
                 html.Div([
                     html.P(dcc.Markdown('''**What are the limitations of this data?**''')),
                 ],style={'text-decoration': 'underline'}),
                 html.Div(
                     children=[
-                       html.P(["Nsis."])
+                       html.P("This data only includes match statistics from 1991 to the present.  Data from 1968 through 1990 was not included due to this issue.  Further, the ATP and WTA (Women's Tennis Association) are mutually exclusive.  This dataset only contains details on ATP matches. ")
                     ]
                 )
         ]),
@@ -164,15 +171,15 @@ app.layout = html.Div([
             ]
        
         ),
-        dcc.Tab(label='Surface Stats',value='tab-3',style=tab_style, selected_style=tab_selected_style,
+        dcc.Tab(label='Individual Stats',value='tab-3',style=tab_style, selected_style=tab_selected_style,
         children=[
             dbc.Row([
                 dbc.Col([
                     dbc.Label('Choose a player:')
                 ], width = 6),
                 dbc.Col([
-                    dbc.Label('Choose a court surface:')
-                 ], width = 6)
+                    dbc.Label('Choose a statistic:')
+                 ], width = 6),
             ]),
             dbc.Row([
                 dbc.Col([
@@ -183,14 +190,14 @@ app.layout = html.Div([
                         options=[{'label': i, 'value': i} for i in player_choices],
                         value=player_choices[0]
                     )
-                ],width=6),
+                ],width=6),  
                 dbc.Col([
-                 #----- Surface filter
+                 #----- Statistic filter
                     dcc.Dropdown(
                         id='dropdown3',
                         style={'color':'black'},
-                        options=[{'label': i, 'value': i} for i in surface_choices],
-                        value = surface_choices[1]
+                        options=[{'label': i, 'value': i} for i in statistic_choices],
+                        value = statistic_choices[0]
                     )
                 ],width=6),
             ]),
@@ -218,7 +225,7 @@ app.layout = html.Div([
                             id='dropdown4',
                             style={'color':'black'},
                             options=[{'label': i, 'value': i} for i in player_choices],
-                            value = player_choices[0]
+                            value = 'Roger Federer'
                         )
                     ],width=6),
                     dbc.Col([
@@ -249,6 +256,11 @@ app.layout = html.Div([
              
 
             ]
+        ),
+        dcc.Tab(label='Predict Winners',value='tab-5',style=tab_style, selected_style=tab_selected_style,
+            children=[
+
+            ]
         )
 
      
@@ -275,6 +287,10 @@ def render_content(tab):
     elif tab == 'tab-4':
         return html.Div([
             html.H3('Tab content 4')
+        ])
+    elif tab == 'tab-5':
+        return html.Div([
+            html.H3('Tab content 5')
         ])
 
     
@@ -353,46 +369,212 @@ def match_table(dd0, dd1, range_slider):
 )
 def stat_timeline_chart(dd2, dd3):
 
-
-    filtered = atp_df[
-        (atp_df['player_name']==dd2) &
-        (atp_df['surface']==dd3) 
-    ]
-
+    filtered = atp_df[atp_df['player_name']==dd2] 
 
     #filtered = atp_df[atp_df['player_name']=='Roger Federer']
-    filtered = filtered[['tourney_name','surface','tourney_date','player_age', 'rank',
-                         'round','num_aces','num_dfs','serve1_in_perc',
+
+    filtered = filtered[['tourney_name','surface','tourney_date','player_age', 
+                        'rank','num_aces','num_dfs','serve1_in_perc',
                          'serve1_win_perc','serve2_win_perc','num_brkpts_saved',
-                         'num_brkpts_faced','outcome','total_games_won',
-                         'total_games_lost','game_win_perc']]
+                         'num_brkpts_faced','outcome','game_win_perc']]
+
+    filtered['game_win_perc'] = filtered['game_win_perc']*100
 
 
-    line_chart_df = filtered.groupby('tourney_date').agg({
-        'num_aces':'mean',
-        'num_dfs':'mean'
-        }).reset_index()
+    stats_df = filtered.groupby('tourney_date').agg({
+        'num_aces':'sum',
+        'num_dfs':'sum',
+        'serve1_in_perc':'mean',
+        'serve1_win_perc':'mean',
+        'serve2_win_perc':'mean',
+        'game_win_perc': 'mean',
+        'num_brkpts_faced':'sum',
+        'num_brkpts_saved':'sum'
+    }).reset_index()
 
-    line_chart_df['tourney_date'] = line_chart_df['tourney_date'].astype(int)
-    line_chart_df['tourney_date'] = pd.to_datetime(line_chart_df['tourney_date'].astype(str), format='%Y%m%d')
+    stats_df['tourney_date'] = pd.to_datetime(stats_df['tourney_date'], format='%Y%m%d')  
+    
+    first_match = stats_df['tourney_date'].min()
+    last_match = stats_df['tourney_date'].max()
+
+    delta = last_match - first_match
+    num_days = delta.days
 
 
-    line_chart = px.line(
-            line_chart_df, 
-            x="tourney_date", 
-            y="num_aces", 
-            #color='MoveFromCountry',
-            markers=True,
-            template = 'plotly_dark',
-            labels={"tourney_date": "Tourney Date",
-                    "num_aces": "# Aces"
-            },
-            title = 'Aces'
+    my_range = pd.date_range(
+        min(stats_df['tourney_date']), 
+        periods=num_days, 
+        freq='1d'
+    )
 
-        )
-    #line_chart.update_layout(legend_title="Country")
+    date_df = pd.DataFrame(my_range)
+    date_df = date_df.rename(columns={date_df.columns[0]: "tourney_date"})
 
-    return line_chart
+    full_days_df = pd.merge(
+        date_df,
+        stats_df,
+        on = 'tourney_date',
+        how = 'left'
+    )
+    #full_days_df['num_aces'] = full_days_df['num_aces'].fillna(0)
+    #full_days_df['num_dfs'] = full_days_df['num_dfs'].fillna(0)
+    #full_days_df['num_brkpts_faced'] = full_days_df['num_brkpts_faced'].fillna(0)
+    #full_days_df['num_brkpts_saved'] = full_days_df['num_brkpts_saved'].fillna(0)
+
+    full_days_df['year'] = full_days_df['tourney_date'].astype(str).str[0:4]
+    full_days_df['month'] = full_days_df['tourney_date'].astype(str).str[5:7]
+    full_days_df['ym'] = full_days_df['year'].astype(str) + "-" + full_days_df['month']
+
+    line_chart_df = full_days_df.groupby('ym').agg({
+        'num_aces':'sum',
+        'num_dfs':'sum',
+        'serve1_in_perc':'mean',
+        'serve1_win_perc':'mean',
+        'serve2_win_perc':'mean',
+        'game_win_perc': 'mean',
+        'num_brkpts_faced':'sum',
+        'num_brkpts_saved':'sum'
+
+    }).reset_index()
+
+    #----- Stat #1: % Games Won
+    if statistic_choices[0] in dd3:
+
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="game_win_perc", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "game_win_perc": "% Games Won"
+                },
+                title = '% Games Won'
+            )
+        return line_chart
+
+    #----- Stat #2: 1st Serve in %
+    elif statistic_choices[1] in dd3:
+
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="serve1_in_perc", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "serve1_in_perc": "1st Serve in %"
+                },
+                title = '1st Serve In %'
+            )
+
+        return line_chart
+
+    #----- Stat #3: 1st Serve Win %
+    elif statistic_choices[2] in dd3:
+    
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="serve1_win_perc", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "serve1_win_perc": "1st Serve Win %"
+                },
+                title = '1st Serve Win %'
+            )
+
+        return line_chart
+
+    #----- Stat #4: 2nd Serve Win %
+    elif statistic_choices[3] in dd3:
+        
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="serve2_win_perc", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "serve2_win_perc": "2nd Serve Win %"
+                },
+                title = '2nd Serve Win %'
+            )
+
+        return line_chart
+
+    #----- Stat #5: Aces
+    elif statistic_choices[4] in dd3:
+            
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="num_aces", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "num_aces": "# Aces"
+                },
+                title = '# Aces'
+            )
+
+        return line_chart
+
+    #----- Stat #6: Break Points Faced
+    elif statistic_choices[5] in dd3:
+            
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="num_brkpts_faced", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "num_brkpts_faced": "# Break Points Faced"
+                },
+                title = '# Break Points Faced'
+            )
+
+        return line_chart
+
+    #----- Stat #7: Break Points Saved
+    elif statistic_choices[6] in dd3:
+            
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="num_brkpts_saved", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "num_brkpts_saved": "# Break Points Saved"
+                },
+                title = '# Break Points Saved'
+            )
+
+        return line_chart
+
+
+
+    #----- Stat #8: # Double Faults
+    elif statistic_choices[7] in dd3:
+            
+        line_chart = px.line(
+                line_chart_df, 
+                x="ym", 
+                y="num_dfs", 
+                markers=True,
+                template = 'plotly_dark',
+                labels={"ym": "Month-Year",
+                        "num_dfs": "# Double Faults"
+                },
+                title = '# Double Faults'
+            )
+
+        return line_chart
+
+
 
 @app.callback(
     Output('dropdown5', 'options'),#-----Filters the opponent options
@@ -401,7 +583,6 @@ def stat_timeline_chart(dd2, dd3):
 )
 def set_character_options(selected_player):
     return [{'label': i, 'value': i} for i in player_opponents_dict[selected_player]], player_opponents_dict[selected_player][0]
-
 
 
 @app.callback(
@@ -434,8 +615,8 @@ def head_to_head_match_stats(dd4, dd5):
     
     card1 = dbc.Card([
             dbc.CardBody([
-                html.H5('Wins - Losses'),
-                html.P(f'{wins} - {losses}')
+                html.H5(f'{wins} - {losses}'),
+                html.P('Wins - Losses')
             ])
         ],
         style={
@@ -452,8 +633,9 @@ def head_to_head_match_stats(dd4, dd5):
 
     card2 = dbc.Card([
             dbc.CardBody([
-                html.H5('Avg # Aces Per Match'),
-                html.P(f'{avg_aces}')
+                html.H5(f'{avg_aces}'),
+                html.P('Avg # Aces Per Match')
+
             ])
         ],
         style={
@@ -470,8 +652,9 @@ def head_to_head_match_stats(dd4, dd5):
 
     card3 = dbc.Card([
             dbc.CardBody([
-                html.H5('Avg # Double Faults Per Match'),
-                html.P(f'{avg_dfs}')
+                html.H5(f'{avg_dfs}'),
+                html.P('Avg # Double Faults Per Match')
+
             ])
         ],
         style={
@@ -489,8 +672,8 @@ def head_to_head_match_stats(dd4, dd5):
 
     card4 = dbc.Card([
             dbc.CardBody([
-                html.H5('Avg # Break Points Saved Per Match'),
-                html.P(f'{avg_bps}')
+                html.H5(f'{avg_bps}'),
+                html.P('Avg # Break Points Saved Per Match')
             ])
         ],
         style={
@@ -503,7 +686,6 @@ def head_to_head_match_stats(dd4, dd5):
         outline=True)
 
     return card1, card2, card3, card4
-
 
 #app.run_server(host='0.0.0.0',port='8049')
 
