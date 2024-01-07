@@ -8,7 +8,8 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 import os
 import pyarrow
-
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 #Read in processed data from github
 url = 'https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/model_df_v2.parquet.gzip'
@@ -36,6 +37,19 @@ statistic_choices = sorted([
     '1st Serve In %', '1st Serve Win %','2nd Serve Win %'
 ])
 
+
+OPTIONS = [
+    {"value": "Aces", "label": "Aces"},
+    {"value": "Double Faults", "label": "Double Faults"},
+    {"value": "Break Points Saved", "label": "Break Points Saved"},
+    {"value": "Break Points Faced", "label": "Break Points Faced"},
+    {"value": "% Games Won", "label": "% Games Won"},
+    {"value": "1st Serve In %", "label": "1st Serve In %"},
+    {"value": "1st Serve Win %", "label": "1st Serve Win %"},
+    {"value": "2nd Serve Win %", "label": "2nd Serve Win %"},
+]
+
+
 #Player --> Opponent Dictionary
 player_opponent_df = atp_df[['tourney_id','player_name','match_num']]
 player_opponent_df = player_opponent_df.sort_values(['tourney_id', 'match_num'], ascending=[True, True])
@@ -43,6 +57,39 @@ player_opponent_df = player_opponent_df.sort_values(['tourney_id', 'match_num'],
 po_pairs = pd.merge(player_opponent_df, player_opponent_df, how = 'inner', on = ['tourney_id','match_num'])
 po_pairs = po_pairs[po_pairs['player_name_x'] != po_pairs['player_name_y']]  # Remove rows where a player is paired with themselves
 player_opponents_dict = po_pairs.groupby('player_name_x')['player_name_y'].agg(list).to_dict()
+
+
+
+
+
+#----- Model Code
+from xgboost import XGBClassifier
+
+#Choose features and response
+y = atp_df['outcome']
+X = atp_df[['num_aces','num_dfs','serve1_in_perc','player_age','surface','num_brkpts_saved','num_brkpts_faced']]
+
+#One Hot Encode surface
+one_hot = pd.get_dummies(X['surface'])
+X = X.drop('surface',axis=1)
+X = X.join(one_hot)
+
+
+scale = StandardScaler()
+scaledX = scale.fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(scaledX, y, test_size=0.30, random_state=42)
+
+
+xgb_class = XGBClassifier()
+xgb_class.fit(X_train, y_train, verbose = False, early_stopping_rounds=15,eval_set=[(X_test,y_test)])
+y_pred = xgb_class.predict(scaledX)
+
+atp_df['pred_wins'] = y_pred
+
+
+
+
 
 
 tabs_styles = {
@@ -196,6 +243,7 @@ app.layout = html.Div([
                     dcc.Dropdown(
                         id='dropdown3',
                         style={'color':'black'},
+                        #multi = True,
                         options=[{'label': i, 'value': i} for i in statistic_choices],
                         value = statistic_choices[0]
                     )
@@ -229,7 +277,7 @@ app.layout = html.Div([
                         )
                     ],width=6),
                     dbc.Col([
-                    #----- Surface filter
+                    #----- Opponent filter
                         dcc.Dropdown(
                             id='dropdown5',
                             style={'color':'black'},
@@ -239,6 +287,11 @@ app.layout = html.Div([
                     ],width=6),
                 ]),
                 #----- Head to Head Stat Cards
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card(id = 'card0')
+                    ])
+                ]),
                 dbc.Row([
                     dbc.Col([
                         dbc.Card(id="card1")
@@ -253,13 +306,62 @@ app.layout = html.Div([
                         dbc.Card(id="card4")
                     ],width=3)
                 ],className="g-0"),
+                dbc.Row([
+                    dcc.Graph(id = 'cumulative_wins')
+                ])
              
 
             ]
         ),
         dcc.Tab(label='Predict Winners',value='tab-5',style=tab_style, selected_style=tab_selected_style,
             children=[
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label('Choose a player:')
+                    ], width = 6),
+                    dbc.Col([
+                        dbc.Label('Choose a surface:')
+                    ], width = 6),
+                ]),
+                dbc.Row([
+                    dbc.Col([
+                    #----- Player filter
+                        dcc.Dropdown(
+                            id='dropdown6',
+                            options=[{'label': i, 'value': i} for i in player_choices],
+                            value = 'Roger Federer'
+                        )
+                    ],width=6),
+                    dbc.Col([
+                    #----- Surface filter
+                        dcc.Dropdown(
+                            id='dropdown7',
+                            style={'color':'black'},
+                            options=[{'label': i, 'value': i} for i in surface_choices],
+                            value = surface_choices[1]
+                        )
+                    ],width=6),
+                ]),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card(id="card5")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card6")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card7")
+                    ],width=3),
+                    dbc.Col([
+                        dbc.Card(id="card8")
+                    ],width=3)
+                ],className="g-0"),
 
+                dbc.Row([
+                    dbc.Col([
+                        dcc.Graph(id = 'predicted_wins')
+                    ])
+                ])
             ]
         )
 
@@ -361,6 +463,16 @@ def match_table(dd0, dd1, range_slider):
         )
     ])
 
+@app.callback(
+    Output("dropdown3", "options"),
+    Input("dropdown3", "value"),
+)
+def update_dropdown_options(values):
+    if len(values) == 4:
+        return [option for option in OPTIONS if OPTIONS["value"] in values]
+    else:
+        return OPTIONS
+
 
 @app.callback(
     Output('stat_timeline_chart','figure'),
@@ -436,6 +548,7 @@ def stat_timeline_chart(dd2, dd3):
         'num_brkpts_saved':'sum'
 
     }).reset_index()
+
 
     #----- Stat #1: % Games Won
     if statistic_choices[0] in dd3:
@@ -586,6 +699,7 @@ def set_character_options(selected_player):
 
 
 @app.callback(
+    Output('card0', 'children'),
     Output('card1', 'children'),
     Output('card2', 'children'),
     Output('card3', 'children'),
@@ -612,6 +726,21 @@ def head_to_head_match_stats(dd4, dd5):
 
     wins = win_df.shape[0]
     losses = loss_df.shape[0]
+
+    card0 = dbc.Card([
+            dbc.CardBody([
+                html.H5(f'How did {dd4} fare against {dd5}?'),
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
     
     card1 = dbc.Card([
             dbc.CardBody([
@@ -685,7 +814,279 @@ def head_to_head_match_stats(dd4, dd5):
             'fontSize':12},
         outline=True)
 
-    return card1, card2, card3, card4
+    return card0, card1, card2, card3, card4
+
+
+@app.callback(
+    Output('cumulative_wins','figure'),
+    Input('dropdown4','value'),
+    Input('dropdown5','value')
+)
+def cumulative_wins(dd4, dd5):
+
+    player1_df = atp_df[atp_df['player_name']==dd4]
+    player2_df = atp_df[atp_df['player_name']==dd5]
+
+    #player1_df = atp_df[atp_df['player_name']=="Rafael Nadal"]
+    #player2_df = atp_df[atp_df['player_name']=="Roger Federer"]
+
+    new_df = pd.merge(
+        player1_df,
+        player2_df,
+        how = 'inner',
+        on = ['tourney_id','match_num']
+    )
+
+    cum_win_df  = new_df[[
+        'tourney_id','tourney_name_x','surface_x', 'tourney_date_x',
+        'player_name_x','outcome_x','player_name_y','outcome_y'
+    ]]
+    cum_win_df = cum_win_df.sort_values(['tourney_date_x'], ascending=True)
+
+    cum_win_df['cum_wins_x'] = cum_win_df['outcome_x'].cumsum()
+    cum_win_df['cum_wins_y'] = cum_win_df['outcome_y'].cumsum()
+    cum_win_df['Match #'] = range(len(cum_win_df))
+
+
+    df1 = cum_win_df[[
+        'tourney_id','tourney_name_x','surface_x',
+        'tourney_date_x','player_name_x','cum_wins_x',
+        'Match #'
+    ]]
+    df1 = df1.rename(columns={
+        'player_name_x': "player_name",
+        'cum_wins_x':'cum_wins'
+    })
+
+    df2 = cum_win_df[[
+        'tourney_id','tourney_name_x','surface_x',
+        'tourney_date_x','player_name_y','cum_wins_y',
+        'Match #'
+    ]]
+    df2 = df2.rename(columns={
+        'player_name_y': "player_name",
+        'cum_wins_y':'cum_wins'
+    })
+
+    df_stacked = pd.concat([df1, df2])
+    df_stacked['Match #'] = df_stacked['Match #'] + 1 
+    df_stacked['tourney_date_x'] = pd.to_datetime(df_stacked['tourney_date_x'], format='%Y%m%d').dt.date
+    
+    line_chart = px.line(
+        df_stacked, 
+        x = "Match #", 
+        color = 'player_name',
+        y = "cum_wins", 
+        markers=True,
+        template = 'plotly_dark',
+        hover_data = {
+            "player_name":True,
+            "tourney_name_x":True,
+            "tourney_date_x":True,
+            "surface_x":True,
+            "cum_wins":True,
+            "tourney_id":False,
+            #"# Match":False
+        },
+        labels={
+            "tourney_id": "Tourney-ID",
+            "tourney_name_x": "Tourney Name",
+            "surface_x": "Surface",
+            "tourney_date_x":"Tourney Date",
+            "player_name": "Player Name",
+            "cum_wins":"Cumulative Wins"
+        }
+    )
+
+    line_chart.update_layout(
+        title_text=f"Cumulative Games Won ({dd4} vs. {dd5})", 
+        title_x=0.5
+    )
+
+
+    line_chart.update_xaxes(type='category')
+
+    return line_chart
+
+
+
+@app.callback(
+    Output('predicted_wins','figure'),
+    Output('card5','children'),
+    Output('card6','children'),
+    Output('card7','children'),
+    Output('card8','children'),
+    Input('dropdown6','value'),
+    Input('dropdown7','value')
+)
+def pred_cumulative_wins(dd6, dd7):
+
+    player_df = atp_df[atp_df['player_name']==dd6]
+
+    #player_df = atp_df[atp_df['player_name']=="Rafael Nadal"]
+   
+    pred_cum_win_df  = player_df[[
+        'tourney_id','tourney_name','surface', 'tourney_date',
+        'player_name','outcome','pred_wins'
+    ]]
+    pred_cum_win_df = pred_cum_win_df.sort_values(['tourney_date'], ascending=True)
+
+    pred_cum_win_df['Match #'] = range(len(pred_cum_win_df))
+
+
+    pred_cum_win_df['Match #'] = pred_cum_win_df['Match #'] + 1 
+    pred_cum_win_df['tourney_date'] = pd.to_datetime(pred_cum_win_df['tourney_date'], format='%Y%m%d').dt.date
+    
+    actuals = pred_cum_win_df.loc[:, pred_cum_win_df.columns != 'pred_wins']
+    actuals['type'] = "Actual"
+    predictions = pred_cum_win_df.loc[:, pred_cum_win_df.columns != 'outcome']
+    predictions['type'] = "Prediction"
+
+
+    actuals = actuals.rename(
+        columns={"outcome": "Outcome"}
+    )
+
+    predictions = predictions.rename(
+        columns={"pred_wins": "Outcome"}
+    )
+
+
+    actuals['cum_wins'] = actuals['Outcome'].cumsum()
+    predictions['cum_wins'] = predictions['Outcome'].cumsum()
+
+    df_stacked = pd.concat([actuals, predictions])
+
+
+    line_chart = px.line(
+        df_stacked, 
+        x = "Match #", 
+        color = 'type',
+        y = "cum_wins", 
+        markers=True,
+        template = 'plotly_dark',
+        hover_data = {
+            "tourney_name":True,
+            "tourney_date":True,
+            "surface":True,
+            "cum_wins":True,
+            "tourney_id":False,
+            #"# Match":False
+        },
+        labels={
+            "tourney_id": "Tourney-ID",
+            "tourney_name": "Tourney Name",
+            "surface": "Surface",
+            "tourney_date":"Tourney Date",
+            "cum_wins":"Cumulative Wins"
+        }
+    )
+
+    line_chart.update_layout(
+        title_text=f"{dd6} Predicted Wins vs. Actual Wins", 
+        title_x=0.5
+    )
+
+
+    line_chart.update_xaxes(type='category')
+    #line_chart['data'][1]['line']['dash'] = 'dash'
+
+
+    #----- Measuring how well the predictions are doing
+    pred_cum_win_df['cum_actual_wins'] = pred_cum_win_df['outcome'].cumsum()
+    pred_cum_win_df['cum_pred_wins'] = pred_cum_win_df['pred_wins'].cumsum()
+
+
+    match_quantiles = pd.DataFrame(
+        pred_cum_win_df['Match #'].quantile([0.25,0.5,0.75,1.00])
+    )
+
+    match_q1 = round(match_quantiles['Match #'].values[0])
+    match_q2 = round(match_quantiles['Match #'].values[1])
+    match_q3 = round(match_quantiles['Match #'].values[2])
+    match_max = round(match_quantiles['Match #'].values[3])
+
+    accuracy25 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q1]
+    accuracy50 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q2]
+    accuracy75 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q3]
+    accuracy100 = pred_cum_win_df[pred_cum_win_df['Match #']==match_max]
+
+    accuracy25['diff'] = accuracy25['cum_actual_wins'] - accuracy25['cum_pred_wins']
+    metric25 = accuracy25['diff'].values[0]
+
+    accuracy50['diff'] = accuracy50['cum_actual_wins'] - accuracy50['cum_pred_wins']
+    metric50 = accuracy50['diff'].values[0]
+
+    accuracy75['diff'] = accuracy75['cum_actual_wins'] - accuracy75['cum_pred_wins']
+    metric75 = accuracy75['diff'].values[0]
+
+    accuracy100['diff'] = accuracy100['cum_actual_wins'] - accuracy100['cum_pred_wins']
+    metric100 = accuracy100['diff'].values[0]
+
+
+    card5 = dbc.Card([
+            dbc.CardBody([
+                html.H5(f'{metric25}'),
+                html.P('# Wins misclassified for 1st 25% of matches')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+    card6 = dbc.Card([
+            dbc.CardBody([
+                html.H5(f'{metric50}'),
+                html.P('# Wins misclassified for 1st 50% of matches')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+    card7 = dbc.Card([
+            dbc.CardBody([
+                html.H5(f'{metric75}'),
+                html.P('# Wins misclassified for 1st 75% of matches')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+    card8 = dbc.Card([
+            dbc.CardBody([
+                html.H5(f'{metric100}'),
+                html.P('# Wins misclassified for 100% matches')
+            ])
+        ],
+        style={
+            'width': '100%',
+            'text-align': 'center',
+            'background-color': '#2E91E5',
+            'color':'white',
+            'fontWeight': 'bold',
+            'fontSize':12},
+        outline=True)
+
+
+    return line_chart, card5, card6, card7, card8
+
 
 #app.run_server(host='0.0.0.0',port='8049')
 
