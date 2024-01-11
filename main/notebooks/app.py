@@ -1,6 +1,6 @@
 #Import packages
 import pandas as pd
-#import numpy as np
+import numpy as np
 import plotly.express as px
 import dash
 from dash import dcc, html, dash_table
@@ -10,6 +10,7 @@ import os
 import pyarrow
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import seaborn as sns
 
 #Read in processed data from github
 url = 'https://raw.githubusercontent.com/statzenthusiast921/ATP_Analysis/main/main/data/model_df_v2.parquet.gzip'
@@ -360,7 +361,10 @@ app.layout = html.Div([
                 dbc.Row([
                     dbc.Col([
                         dcc.Graph(id = 'predicted_wins')
-                    ])
+                    ], width = 8),
+                    dbc.Col([
+                        dcc.Graph(id = 'confusion_matrix')
+                    ],width = 4)
                 ])
             ]
         )
@@ -903,7 +907,6 @@ def cumulative_wins(dd4, dd5):
         title_x=0.5
     )
 
-
     line_chart.update_xaxes(type='category')
 
     return line_chart
@@ -912,6 +915,7 @@ def cumulative_wins(dd4, dd5):
 
 @app.callback(
     Output('predicted_wins','figure'),
+    Output('confusion_matrix','figure'),
     Output('card5','children'),
     Output('card6','children'),
     Output('card7','children'),
@@ -984,50 +988,73 @@ def pred_cumulative_wins(dd6, dd7):
 
     line_chart.update_layout(
         title_text=f"{dd6} Predicted Wins vs. Actual Wins", 
-        title_x=0.5
+        title_x=0.5,
+        legend_title=None,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.25,
+            xanchor="center",
+            x=0.5
+        )
     )
-
 
     line_chart.update_xaxes(type='category')
     #line_chart['data'][1]['line']['dash'] = 'dash'
+    #line_chart['data'][0]['line']['color']='#2DFE54'
 
+    line_chart['data'][1]['line']['color']='#2DFE54'
 
     #----- Measuring how well the predictions are doing
-    pred_cum_win_df['cum_actual_wins'] = pred_cum_win_df['outcome'].cumsum()
-    pred_cum_win_df['cum_pred_wins'] = pred_cum_win_df['pred_wins'].cumsum()
+    cm_df = pred_cum_win_df[['outcome','pred_wins']]
 
+    conditions = [
+        ((cm_df['outcome'] == 1) & (cm_df['pred_wins'] == 1)),
+        ((cm_df['outcome'] == 0) & (cm_df['pred_wins'] == 0)),
+        ((cm_df['outcome'] == 1) & (cm_df['pred_wins'] == 0)),
+        ((cm_df['outcome'] == 0) & (cm_df['pred_wins'] == 1))
+    ]
 
-    match_quantiles = pd.DataFrame(
-        pred_cum_win_df['Match #'].quantile([0.25,0.5,0.75,1.00])
+    values = [
+        'Actual Win, Pred Win', 
+        'Actual Win, Pred Loss', 
+        'Actual Loss, Pred Loss', 
+        'Actual Loss, Pred Win'
+    ]
+
+    cm_df['cm'] = np.select(conditions, values)
+
+    matrix = np.array([
+        [cm_df['cm'].value_counts()[0],cm_df['cm'].value_counts()[1]],
+        [cm_df['cm'].value_counts()[3],cm_df['cm'].value_counts()[2]]
+    ])
+
+    Index= ['Actual Win', 'Actual Loss']
+    Cols = ['Predicted Win', 'Predicted Loss']
+    heat_map_df = pd.DataFrame(matrix, index=Index, columns=Cols)
+
+    heat_map = px.imshow(
+        heat_map_df,
+        template = 'plotly_dark',
+        text_auto=True
+
     )
+    heat_map.update_xaxes(side="top")
 
-    match_q1 = round(match_quantiles['Match #'].values[0])
-    match_q2 = round(match_quantiles['Match #'].values[1])
-    match_q3 = round(match_quantiles['Match #'].values[2])
-    match_max = round(match_quantiles['Match #'].values[3])
+    true_pos = heat_map_df['Predicted Win'][0] 
+    false_pos = heat_map_df['Predicted Win'][1] 
+    false_neg = heat_map_df['Predicted Loss'][0] 
+    true_neg = heat_map_df['Predicted Loss'][1] 
 
-    accuracy25 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q1]
-    accuracy50 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q2]
-    accuracy75 = pred_cum_win_df[pred_cum_win_df['Match #']==match_q3]
-    accuracy100 = pred_cum_win_df[pred_cum_win_df['Match #']==match_max]
-
-    accuracy25['diff'] = accuracy25['cum_actual_wins'] - accuracy25['cum_pred_wins']
-    metric25 = accuracy25['diff'].values[0]
-
-    accuracy50['diff'] = accuracy50['cum_actual_wins'] - accuracy50['cum_pred_wins']
-    metric50 = accuracy50['diff'].values[0]
-
-    accuracy75['diff'] = accuracy75['cum_actual_wins'] - accuracy75['cum_pred_wins']
-    metric75 = accuracy75['diff'].values[0]
-
-    accuracy100['diff'] = accuracy100['cum_actual_wins'] - accuracy100['cum_pred_wins']
-    metric100 = accuracy100['diff'].values[0]
-
+    accuracy = round(((true_pos + true_neg) / (true_pos + false_pos + false_neg + true_neg) ) *100,1)
+    precision = round(((true_pos) / (true_pos + false_pos) ) *100,1)
+    recall = round(((true_pos) / (true_pos + false_neg) ) *100,1)
+    f1_score = round(2*((precision*recall)/(precision+recall)),1)
 
     card5 = dbc.Card([
             dbc.CardBody([
-                html.H5(f'{metric25}'),
-                html.P('# Wins misclassified for 1st 25% of matches')
+                html.H5(f'{accuracy}%'),
+                html.P('Accuracy')
             ])
         ],
         style={
@@ -1041,8 +1068,8 @@ def pred_cumulative_wins(dd6, dd7):
 
     card6 = dbc.Card([
             dbc.CardBody([
-                html.H5(f'{metric50}'),
-                html.P('# Wins misclassified for 1st 50% of matches')
+                html.H5(f'{precision}%'),
+                html.P('Precision')
             ])
         ],
         style={
@@ -1056,8 +1083,8 @@ def pred_cumulative_wins(dd6, dd7):
 
     card7 = dbc.Card([
             dbc.CardBody([
-                html.H5(f'{metric75}'),
-                html.P('# Wins misclassified for 1st 75% of matches')
+                html.H5(f'{recall}%'),
+                html.P('Recall')
             ])
         ],
         style={
@@ -1071,8 +1098,8 @@ def pred_cumulative_wins(dd6, dd7):
 
     card8 = dbc.Card([
             dbc.CardBody([
-                html.H5(f'{metric100}'),
-                html.P('# Wins misclassified for 100% matches')
+                html.H5(f'{f1_score}%'),
+                html.P('F1 Score')
             ])
         ],
         style={
@@ -1085,7 +1112,7 @@ def pred_cumulative_wins(dd6, dd7):
         outline=True)
 
 
-    return line_chart, card5, card6, card7, card8
+    return line_chart, heat_map, card5, card6, card7, card8
 
 
 #app.run_server(host='0.0.0.0',port='8049')
