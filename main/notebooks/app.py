@@ -59,8 +59,9 @@ po_pairs = pd.merge(player_opponent_df, player_opponent_df, how = 'inner', on = 
 po_pairs = po_pairs[po_pairs['player_name_x'] != po_pairs['player_name_y']]  # Remove rows where a player is paired with themselves
 player_opponents_dict = po_pairs.groupby('player_name_x')['player_name_y'].agg(list).to_dict()
 
-
-
+#Player --> Surface Dictionary
+player_surface_df = atp_df[['player_name','surface']].drop_duplicates()
+player_surface_dict = player_surface_df.groupby('player_name')['surface'].agg(list).to_dict()
 
 
 #----- Model Code
@@ -87,10 +88,6 @@ xgb_class.fit(X_train, y_train, verbose = False, early_stopping_rounds=15,eval_s
 y_pred = xgb_class.predict(scaledX)
 
 atp_df['pred_wins'] = y_pred
-
-
-
-
 
 
 tabs_styles = {
@@ -339,7 +336,8 @@ app.layout = html.Div([
                             id='dropdown7',
                             style={'color':'black'},
                             options=[{'label': i, 'value': i} for i in surface_choices],
-                            value = surface_choices[1]
+                            value = surface_choices[0:4],
+                            multi = True
                         )
                     ],width=6),
                 ]),
@@ -912,6 +910,16 @@ def cumulative_wins(dd4, dd5):
     return line_chart
 
 
+# @app.callback(
+#     Output('dropdown7', 'options'),#-----Filters the surface options
+#     Output('dropdown7', 'value'),
+#     Input('dropdown6', 'value') #----- Select the player
+# )
+# def set_surface_options(selected_player):
+#     return [{'label': i, 'value': i} for i in player_surface_dict[selected_player]], player_surface_dict[selected_player][0]
+
+
+
 
 @app.callback(
     Output('predicted_wins','figure'),
@@ -926,10 +934,11 @@ def cumulative_wins(dd4, dd5):
 def pred_cumulative_wins(dd6, dd7):
 
     player_df = atp_df[atp_df['player_name']==dd6]
+    surface_player_df = player_df[player_df['surface'].isin(dd7)]
 
     #player_df = atp_df[atp_df['player_name']=="Rafael Nadal"]
    
-    pred_cum_win_df  = player_df[[
+    pred_cum_win_df  = surface_player_df[[
         'tourney_id','tourney_name','surface', 'tourney_date',
         'player_name','outcome','pred_wins'
     ]]
