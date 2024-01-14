@@ -39,18 +39,6 @@ statistic_choices = sorted([
 ])
 
 
-OPTIONS = [
-    {"value": "Aces", "label": "Aces"},
-    {"value": "Double Faults", "label": "Double Faults"},
-    {"value": "Break Points Saved", "label": "Break Points Saved"},
-    {"value": "Break Points Faced", "label": "Break Points Faced"},
-    {"value": "% Games Won", "label": "% Games Won"},
-    {"value": "1st Serve In %", "label": "1st Serve In %"},
-    {"value": "1st Serve Win %", "label": "1st Serve Win %"},
-    {"value": "2nd Serve Win %", "label": "2nd Serve Win %"},
-]
-
-
 #Player --> Opponent Dictionary
 player_opponent_df = atp_df[['tourney_id','player_name','match_num']]
 player_opponent_df = player_opponent_df.sort_values(['tourney_id', 'match_num'], ascending=[True, True])
@@ -398,7 +386,7 @@ def render_content(tab):
         ])
 
     
-
+#----- Tab #2: Master matches table filterable by player, surface, and
 @app.callback(
     Output('matches_table','children'),
     Input('dropdown0','value'),
@@ -465,16 +453,7 @@ def match_table(dd0, dd1, range_slider):
         )
     ])
 
-@app.callback(
-    Output("dropdown3", "options"),
-    Input("dropdown3", "value"),
-)
-def update_dropdown_options(values):
-    if len(values) == 4:
-        return [option for option in OPTIONS if OPTIONS["value"] in values]
-    else:
-        return OPTIONS
-
+#----- Tab 3: Individual Stats filterable by player and specific statistic
 
 @app.callback(
     Output('stat_timeline_chart','figure'),
@@ -495,7 +474,7 @@ def stat_timeline_chart(dd2, dd3):
     filtered['game_win_perc'] = filtered['game_win_perc']*100
 
 
-    stats_df = filtered.groupby('tourney_date').agg({
+    stats_df = filtered.groupby(['tourney_date','surface']).agg({
         'num_aces':'sum',
         'num_dfs':'sum',
         'serve1_in_perc':'mean',
@@ -530,16 +509,12 @@ def stat_timeline_chart(dd2, dd3):
         on = 'tourney_date',
         how = 'left'
     )
-    #full_days_df['num_aces'] = full_days_df['num_aces'].fillna(0)
-    #full_days_df['num_dfs'] = full_days_df['num_dfs'].fillna(0)
-    #full_days_df['num_brkpts_faced'] = full_days_df['num_brkpts_faced'].fillna(0)
-    #full_days_df['num_brkpts_saved'] = full_days_df['num_brkpts_saved'].fillna(0)
 
     full_days_df['year'] = full_days_df['tourney_date'].astype(str).str[0:4]
     full_days_df['month'] = full_days_df['tourney_date'].astype(str).str[5:7]
     full_days_df['ym'] = full_days_df['year'].astype(str) + "-" + full_days_df['month']
 
-    line_chart_df = full_days_df.groupby('ym').agg({
+    line_chart_df = full_days_df.groupby(['ym','surface']).agg({
         'num_aces':'sum',
         'num_dfs':'sum',
         'serve1_in_perc':'mean',
@@ -557,15 +532,27 @@ def stat_timeline_chart(dd2, dd3):
 
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="game_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "game_win_perc": "% Games Won"
-                },
-                title = '% Games Won'
+                }
+        )
+
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
         return line_chart
 
     #----- Stat #2: 1st Serve in %
@@ -573,15 +560,26 @@ def stat_timeline_chart(dd2, dd3):
 
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="serve1_in_perc", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "serve1_in_perc": "1st Serve in %"
-                },
-                title = '1st Serve In %'
+                }
+        )
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
 
         return line_chart
 
@@ -590,15 +588,26 @@ def stat_timeline_chart(dd2, dd3):
     
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="serve1_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "serve1_win_perc": "1st Serve Win %"
-                },
-                title = '1st Serve Win %'
+                }
+        )
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
 
         return line_chart
 
@@ -607,15 +616,26 @@ def stat_timeline_chart(dd2, dd3):
         
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="serve2_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "serve2_win_perc": "2nd Serve Win %"
-                },
-                title = '2nd Serve Win %'
+                }
+        )
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
 
         return line_chart
 
@@ -624,15 +644,26 @@ def stat_timeline_chart(dd2, dd3):
             
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="num_aces", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "num_aces": "# Aces"
-                },
-                title = '# Aces'
+                }
+        )
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
 
         return line_chart
 
@@ -641,15 +672,26 @@ def stat_timeline_chart(dd2, dd3):
             
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="num_brkpts_faced", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "num_brkpts_faced": "# Break Points Faced"
-                },
-                title = '# Break Points Faced'
+                }
             )
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
+            )
+        )
 
         return line_chart
 
@@ -658,15 +700,27 @@ def stat_timeline_chart(dd2, dd3):
             
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="num_brkpts_saved", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "num_brkpts_saved": "# Break Points Saved"
-                },
-                title = '# Break Points Saved'
+                }
+        )
+
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
 
         return line_chart
 
@@ -677,29 +731,48 @@ def stat_timeline_chart(dd2, dd3):
             
         line_chart = px.line(
                 line_chart_df, 
+                color = 'surface',
                 x="ym", 
                 y="num_dfs", 
                 markers=True,
                 template = 'plotly_dark',
                 labels={"ym": "Month-Year",
                         "num_dfs": "# Double Faults"
-                },
-                title = '# Double Faults'
+                }
+        )
+
+        line_chart.update_layout(
+            title_x=0.5,
+            legend_title=None,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.075,
+                xanchor="center",
+                x=0.5
             )
+        )
+
 
         return line_chart
 
 
-
+#--- Set up a dependent dropdown menu for head to head tab (tab 4) - player vs. opponent
 @app.callback(
     Output('dropdown5', 'options'),#-----Filters the opponent options
     Output('dropdown5', 'value'),
     Input('dropdown4', 'value') #----- Select the player
 )
 def set_character_options(selected_player):
-    return [{'label': i, 'value': i} for i in player_opponents_dict[selected_player]], player_opponents_dict[selected_player][0]
+
+    if selected_player == "Roger Federer":
+        return [{'label': i, 'value': i} for i in player_opponents_dict[selected_player]], player_opponents_dict[selected_player][196]
+    else:
+
+        return [{'label': i, 'value': i} for i in player_opponents_dict[selected_player]], player_opponents_dict[selected_player][0]
 
 
+#----- Callback to update all the head-to-head statistics on tab 4
 @app.callback(
     Output('card0', 'children'),
     Output('card1', 'children'),
@@ -709,7 +782,6 @@ def set_character_options(selected_player):
     Input('dropdown4', 'value'),
     Input('dropdown5', 'value')
 )
-
 
 def head_to_head_match_stats(dd4, dd5):
     player1_df = atp_df[atp_df['player_name']==dd4]
@@ -721,7 +793,6 @@ def head_to_head_match_stats(dd4, dd5):
         how = 'inner',
         on = ['tourney_id','match_num']
     )
-    #new_df.to_csv('head2head.csv', sep=',', index=False, encoding='utf-8')
 
     win_df = new_df[new_df['outcome_x']==1]
     loss_df = new_df[new_df['outcome_x']==0]
@@ -819,6 +890,7 @@ def head_to_head_match_stats(dd4, dd5):
     return card0, card1, card2, card3, card4
 
 
+#Callback on tab 4 to set up step chart for cumulative wins (player vs. opponent)
 @app.callback(
     Output('cumulative_wins','figure'),
     Input('dropdown4','value'),
@@ -902,24 +974,22 @@ def cumulative_wins(dd4, dd5):
 
     line_chart.update_layout(
         title_text=f"Cumulative Games Won ({dd4} vs. {dd5})", 
-        title_x=0.5
+        title_x=0.5,
+        legend_title=None,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1.075,
+            xanchor="center",
+            x=0.5
+        )
     )
 
     line_chart.update_xaxes(type='category')
 
     return line_chart
 
-
-# @app.callback(
-#     Output('dropdown7', 'options'),#-----Filters the surface options
-#     Output('dropdown7', 'value'),
-#     Input('dropdown6', 'value') #----- Select the player
-# )
-# def set_surface_options(selected_player):
-#     return [{'label': i, 'value': i} for i in player_surface_dict[selected_player]], player_surface_dict[selected_player][0]
-
-
-
+#----- Callback for everything on tab 5 - XGBoost model results
 
 @app.callback(
     Output('predicted_wins','figure'),
@@ -1002,7 +1072,7 @@ def pred_cumulative_wins(dd6, dd7):
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.25,
+            y=1.075,
             xanchor="center",
             x=0.5
         )
@@ -1120,9 +1190,7 @@ def pred_cumulative_wins(dd6, dd7):
             'fontSize':12},
         outline=True)
 
-
     return line_chart, heat_map, card5, card6, card7, card8
-
 
 #app.run_server(host='0.0.0.0',port='8049')
 
