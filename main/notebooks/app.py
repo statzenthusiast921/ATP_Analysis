@@ -5,7 +5,7 @@ import plotly.express as px
 import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import os
 import pyarrow
 from sklearn.model_selection import train_test_split
@@ -144,6 +144,25 @@ app.layout = html.Div([
             children = [
                 dbc.Row([
                     dbc.Col([
+                        html.Div([
+                            dbc.Button("Click Here for Instructions", id="open1",color='secondary',style={"fontSize":18}),
+                            dbc.Modal([
+                                    dbc.ModalHeader("Instructions"),
+                                    dbc.ModalBody(
+                                        children=[
+                                            html.P('Below is a player-specific table with details about each ATP match from 1991 to 2022.'),
+                                            html.P('You can update the table by selecting a player, surface, and timeframe.'),
+                                        ]
+                                    ),
+                                    dbc.ModalFooter(
+                                        dbc.Button("Close", id="close1", className="ml-auto")
+                                    ),
+                            ],id="modal1",size="md",scrollable=True),
+                        ],className="d-grid gap-2")
+                    ],width=12)
+                ]),
+                dbc.Row([
+                    dbc.Col([
                         dbc.Label('Choose a player:')
                     ], width = 4),
                     dbc.Col([
@@ -208,6 +227,25 @@ app.layout = html.Div([
         children=[
             dbc.Row([
                 dbc.Col([
+                    html.Div([
+                        dbc.Button("Click Here for Instructions", id="open2",color='secondary',style={"fontSize":18}),
+                        dbc.Modal([
+                            dbc.ModalHeader("Instructions"),
+                            dbc.ModalBody(
+                                children=[
+                                    html.P('Below is a chart showcasing how the selected player has performed over time utilizing several statistics.'),
+                                    html.P('You can update the chart by selecting a player and one of the 8 available statistics.  Data is aggregated at the quarterly level.'),
+                                ]
+                            ),
+                            dbc.ModalFooter(
+                                dbc.Button("Close", id="close2", className="ml-auto")
+                            ),
+                        ],id="modal2",size="md",scrollable=True),
+                    ],className="d-grid gap-2")
+                ],width=12)
+            ]),
+            dbc.Row([
+                dbc.Col([
                     dbc.Label('Choose a player:')
                 ], width = 6),
                 dbc.Col([
@@ -221,7 +259,7 @@ app.layout = html.Div([
                         id='dropdown2',
                         style={'color':'black'},
                         options=[{'label': i, 'value': i} for i in player_choices],
-                        value=player_choices[0]
+                        value='Rafael Nadal'
                     )
                 ],width=6),  
                 dbc.Col([
@@ -244,6 +282,25 @@ app.layout = html.Div([
         ]),
         dcc.Tab(label='Head-to-Head Matchups',value='tab-4',style=tab_style, selected_style=tab_selected_style,
             children = [
+                dbc.Row([
+                    dbc.Col([
+                        html.Div([
+                            dbc.Button("Click Here for Instructions", id="open3",color='secondary',style={"fontSize":18}),
+                            dbc.Modal([
+                                dbc.ModalHeader("Instructions"),
+                                dbc.ModalBody(
+                                    children=[
+                                        html.P('Below is a chart showcasing the cumulative wins earned for the selected player against the selected opponent.  Average match statistics are also presented.'),
+                                        html.P('You can update the chart and statistics by selecting a player and then select any of his opponents.'),
+                                    ]
+                                ),
+                                dbc.ModalFooter(
+                                    dbc.Button("Close", id="close3", className="ml-auto")
+                                ),
+                            ],id="modal3",size="md",scrollable=True),
+                        ],className="d-grid gap-2")
+                    ],width=12)
+                ]),
                 dbc.Row([
                     dbc.Col([
                         dbc.Label('Choose player:')
@@ -301,6 +358,27 @@ app.layout = html.Div([
         ),
         dcc.Tab(label='Predict Winners',value='tab-5',style=tab_style, selected_style=tab_selected_style,
             children=[
+                dbc.Row([
+                    dbc.Col([
+                        html.Div([
+                            dbc.Button("Click Here for Instructions", id="open4",color='secondary',style={"fontSize":18}),
+                            dbc.Modal([
+                                dbc.ModalHeader("Instructions"),
+                                dbc.ModalBody(
+                                    children=[
+                                        html.P('Below is a chart and table showcasing the results of fitting an XGBoost model to match-level statistics in order to predict the outcome of any ATP match.  In order to update the page, select a player and select a combination of surfaces.'),
+                                        html.P('The model used the number of aces, double faults, 1st serve in %, age of the player, surface, and the number of break points saved and faced to predict the outcome of the match.'),
+                                        html.P('The chart compares the actual outcome for the selected player (blue) and the predicted outcome (green).  The performance of the model can be analyzed using the 4 statistics above the chart and the confusion matrix to the right of the chart.'),
+                                        html.P('Accuracy measures the # of correct predictions (wins and losses) out of all predictions.  Precision measures how many predicted wins were correct out of all predicted wins (wins that were correct and incorrect).  Recall measures the number of correct predictions of wins out of all the predictions that should be wins. The F1 score measures the balance between precision and recall.')
+                                    ]
+                                ),
+                                dbc.ModalFooter(
+                                    dbc.Button("Close", id="close4", className="ml-auto")
+                                ),
+                            ],id="modal4",size="md",scrollable=True),
+                        ],className="d-grid gap-2")
+                    ],width=12)
+                ]),
                 dbc.Row([
                     dbc.Col([
                         dbc.Label('Choose a player:')
@@ -511,10 +589,15 @@ def stat_timeline_chart(dd2, dd3):
     )
 
     full_days_df['year'] = full_days_df['tourney_date'].astype(str).str[0:4]
-    full_days_df['month'] = full_days_df['tourney_date'].astype(str).str[5:7]
-    full_days_df['ym'] = full_days_df['year'].astype(str) + "-" + full_days_df['month']
+    full_days_df['quarter'] = full_days_df['tourney_date'].dt.quarter
+    full_days_df['yq'] = full_days_df['year'].astype(str) + "Q" + full_days_df['quarter'].astype(str)
+    full_days_df['quarter_date'] = pd.PeriodIndex(
+        full_days_df['tourney_date'], freq='Q'
+    ).to_timestamp()
 
-    line_chart_df = full_days_df.groupby(['ym','surface']).agg({
+
+
+    line_chart_df = full_days_df.groupby(['quarter_date','surface']).agg({
         'num_aces':'sum',
         'num_dfs':'sum',
         'serve1_in_perc':'mean',
@@ -526,18 +609,17 @@ def stat_timeline_chart(dd2, dd3):
 
     }).reset_index()
 
-
     #----- Stat #1: % Games Won
     if statistic_choices[0] in dd3:
 
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="game_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "game_win_perc": "% Games Won"
                 }
         )
@@ -561,11 +643,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="serve1_in_perc", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "serve1_in_perc": "1st Serve in %"
                 }
         )
@@ -589,11 +671,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="serve1_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "serve1_win_perc": "1st Serve Win %"
                 }
         )
@@ -617,11 +699,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="serve2_win_perc", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "serve2_win_perc": "2nd Serve Win %"
                 }
         )
@@ -645,11 +727,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="num_aces", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "num_aces": "# Aces"
                 }
         )
@@ -673,11 +755,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="num_brkpts_faced", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "num_brkpts_faced": "# Break Points Faced"
                 }
             )
@@ -701,11 +783,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="num_brkpts_saved", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "num_brkpts_saved": "# Break Points Saved"
                 }
         )
@@ -732,11 +814,11 @@ def stat_timeline_chart(dd2, dd3):
         line_chart = px.line(
                 line_chart_df, 
                 color = 'surface',
-                x="ym", 
+                x="quarter_date", 
                 y="num_dfs", 
                 markers=True,
                 template = 'plotly_dark',
-                labels={"ym": "Month-Year",
+                labels={"quarter_date": "Month-Year (Q)",
                         "num_dfs": "# Double Faults"
                 }
         )
@@ -1191,6 +1273,61 @@ def pred_cumulative_wins(dd6, dd7):
         outline=True)
 
     return line_chart, heat_map, card5, card6, card7, card8
+
+
+#----------Configure reactivity for Button #1 (Instructions) --> Tab #2----------#
+@app.callback(
+    Output("modal1", "is_open"),
+    Input("open1", "n_clicks"), 
+    Input("close1", "n_clicks"),
+    State("modal1", "is_open")
+)
+
+def toggle_modal1(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open    
+
+
+#----------Configure reactivity for Button #2 (Instructions) --> Tab #3----------#
+@app.callback(
+    Output("modal2", "is_open"),
+    Input("open2", "n_clicks"), 
+    Input("close2", "n_clicks"),
+    State("modal2", "is_open")
+)
+
+def toggle_modal2(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open  
+
+#----------Configure reactivity for Button #3 (Instructions) --> Tab #4----------#
+@app.callback(
+    Output("modal3", "is_open"),
+    Input("open3", "n_clicks"), 
+    Input("close3", "n_clicks"),
+    State("modal3", "is_open")
+)
+
+def toggle_modal3(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open  
+
+#----------Configure reactivity for Button #4 (Instructions) --> Tab #5----------#
+@app.callback(
+    Output("modal4", "is_open"),
+    Input("open4", "n_clicks"), 
+    Input("close4", "n_clicks"),
+    State("modal4", "is_open")
+)
+
+def toggle_modal3(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open  
+
 
 #app.run_server(host='0.0.0.0',port='8049')
 
